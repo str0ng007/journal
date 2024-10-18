@@ -1,2 +1,2 @@
-# journal
-My Notes and Codes
+# Tech Journal
+My Notes, Codes and Configs
