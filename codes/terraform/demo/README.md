@@ -35,3 +35,5 @@ instance_type  = "Your preferred instance type"
 instance_count = 1
 public_key     = "Enter your SSH public key here"
 ```
+
+## NOTE: This code was also tested using OpenTofu - https://opentofu.org/
