@@ -1,0 +1,67 @@
+---
+
+- name: Prepare Hosts
+  hosts: 
+    - all
+  become: true
+  roles:
+    - prep_hosts
+
+- name: Setup Firewall
+  hosts:
+    - all
+  become: true
+  roles:
+    - firewall
+
+- name: Install Kubernetes
+  hosts: all
+  become: true
+  roles:
+    - install_k8s
+
+- name: Initialize and configure master node
+  hosts: "{{ groups['master'][0] }}"
+  become: true
+  roles:
+    - initialize_master
+
+- name: Copy Join script
+  hosts: "{{ groups['master'][0] }}"
+  gather_facts: no
+  tasks:
+    - name: fetch file
+      fetch:
+        src: "/home/{{ ansible_user }}/scripts/join.sh"
+        dest: "/tmp/join.sh"
+        flat: yes
+
+- name: Copy join script to worker
+  hosts: workers
+  become: true
+  tasks:
+    - name: create script directory
+      ansible.builtin.file:
+        path: "/home/{{ ansible_user }}/scripts"
+        state: directory
+        mode: '0755'
+
+    - name: Copy join script
+      ansible.builtin.copy:
+        src: "/tmp/join.sh"
+        dest: "/home/{{ ansible_user }}/scripts/join.sh"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: u=rwx
+    - name: Join workers
+      command: sh "/home/{{ ansible_user }}/scripts/join.sh"
+      ignore_errors: yes
+
+
+- name: Install Calico Network
+  hosts: "{{ groups['master'][0] }}"
+  gather_facts: no
+  tasks:
+    - name: install calico
+      command: kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.2/manifests/calico.yaml
+

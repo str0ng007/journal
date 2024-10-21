@@ -1,0 +1,92 @@
+- name: Disable swap memory
+  command: swapoff -a
+
+- name: Disable swap permanently
+  command: sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+
+- name: Permissive SELinux
+  ansible.posix.selinux:
+    policy: targeted
+    state: permissive
+
+
+- name: Create containerd file
+  copy:
+    content: ""
+    dest: /etc/modules-load.d/containerd.conf
+    force: false
+
+- name: Add kernel modules
+  ansible.builtin.lineinfile:
+    path: /etc/modules-load.d/containerd.conf
+    line: "{{ item }}"
+  loop: "{{ linux_kernel_modules }}" 
+      
+- name: Apply kernel module
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ linux_kernel_modules }}"
+
+- name: Create k8s.conf
+  copy:
+    content: ""
+    dest: /etc/sysctl.d/k8s.conf
+    force: false
+
+- name: Apply k8s kernel parameters
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/k8s.conf
+    sysctl_set: true
+    state: present
+    reload: false
+  loop: "{{ k8s_kernel_params | dict2items }}"
+
+- name: Download containerd repo
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/centos/docker-ce.repo
+    dest: /etc/yum.repos.d/docker-ce.repo
+
+- name: Install Containerd
+  ansible.builtin.dnf:
+    name: containerd.io
+    state: present
+    update_cache: true
+
+- name: Create containerd config
+  command: containerd config default 
+  register: containerd_out
+
+- name: Delete containerd config
+  ansible.builtin.file:
+    path: /etc/containerd/config.toml
+    state: absent
+
+- name: Create containerd config file
+  copy:
+    content: ""
+    dest: /etc/containerd/config.toml
+    force: false
+
+- name: Save containerd config
+  ansible.builtin.lineinfile:
+    dest: /etc/containerd/config.toml
+    line: "{{ containerd_out.stdout }}"
+    insertafter: EOF
+
+- name: Update containerd config
+  ansible.builtin.replace:
+    path: /etc/containerd/config.toml
+    regexp: 'SystemdCgroup = false'
+    replace: SystemdCgroup = true
+  
+- name: Restart containerd 
+  ansible.builtin.systemd_service:
+    name: containerd
+    state: started
+    enabled: true
+
+
+

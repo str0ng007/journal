@@ -1,0 +1,48 @@
+- name: Initialize Master node
+  command: kubeadm init --control-plane-endpoint={{ inventory_hostname }}
+  ignore_errors: yes
+
+- name: Generate k8s token
+  shell: kubeadm token create --print-join-command
+  register: kubeadm_token
+
+- name: create script directory
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/scripts"
+    state: directory
+    mode: '0755'
+
+- name: Create node join script on worker nodes
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/scripts/join.sh"
+    state: absent
+
+- name: Create node join script
+  copy:
+    content: ""
+    dest: "/home/{{ ansible_user }}/scripts/join.sh"
+    force: false
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: u=rwx,g=r
+
+- name: Save containerd config
+  ansible.builtin.lineinfile:
+    dest: "/home/{{ ansible_user }}/scripts/join.sh"
+    line: "{{ kubeadm_token.stdout }}"
+    insertafter: EOF
+
+- name: Create .kube directory
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/.kube"
+    state: directory
+    mode: '0755'
+
+- name: Create kubectl config
+  ansible.builtin.copy:
+    src: /etc/kubernetes/admin.conf
+    dest: "/home/{{ ansible_user }}/.kube/config"
+    owner: vagrant
+    group: vagrant
+    remote_src: yes
+

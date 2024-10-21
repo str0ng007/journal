@@ -1,0 +1,28 @@
+- name: Add Kubernetes repos
+  ansible.builtin.yum_repository:
+    name: Kubernetes
+    description: K8s repository
+    file: kubernetes_repos
+    baseurl: https://pkgs.k8s.io/core:/stable:/v1.31/rpm/
+    enabled: yes
+    gpgcheck: 1
+    gpgkey: https://pkgs.k8s.io/core:/stable:/v1.31/rpm/repodata/repomd.xml.key
+    exclude: kubelet kubeadm kubectl cri-tools kubernetes-cni
+
+- name: Install Kubernetes
+  ansible.builtin.dnf:
+    name:
+      - kubelet
+      - kubeadm
+      - kubectl
+      - socat
+    state: present
+    update_cache: true
+    disable_excludes: all
+    exclude: kubernetes
+
+- name: Start and Enable Kubelet
+  ansible.builtin.systemd_service:
+    name: kubelet
+    state: started
+    enabled: true

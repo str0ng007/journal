@@ -1,0 +1,28 @@
+- name: Ensure FirewallD is installed
+  ansible.builtin.dnf:
+    name: firewalld
+    state: present
+
+- name: Ensure FirewallD is enabled
+  ansible.builtin.systemd_service:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: Add ports #TODO - make this per group (master/worker)
+  ansible.posix.firewalld:
+    port: "{{ item }}/tcp"
+    permanent: true
+    state: enabled
+    immediate: true
+  loop: "{{ firewall_ports.tcp }}"
+
+- name: Add ports #TODO - make this per group (master/worker)
+  ansible.posix.firewalld:
+    port: "{{ item }}/udp"
+    permanent: true
+    state: enabled
+    immediate: true
+  loop: "{{ firewall_ports.udp }}"
+
+

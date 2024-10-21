@@ -1,0 +1,9 @@
+- name: Upgrade all packages
+  dnf:
+    update_cache: yes
+    name: "*"
+    state: latest
+
+- name: Reboot
+  reboot:
+    reboot_timeout: 3600
