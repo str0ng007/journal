@@ -36,7 +36,7 @@ ansible-playbook -i inventory Update_os.yml
 
 ## Execute kubernetes install
 ```
-ansible-playbook i inventory install_k8s.yml
+ansible-playbook -i inventory install_k8s.yml
 ```
 
 ## Wait for the playbook to complete
