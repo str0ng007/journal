@@ -1,0 +1,8 @@
+---
+
+- name: Update OS
+  hosts: 
+    - all
+  become: true
+  roles:
+    - os_update
