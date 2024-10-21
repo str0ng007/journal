@@ -175,3 +175,6 @@ then monitor all the pods.
 kubectl get pods --all-namespaces
 ```
 
+## Created an ansible playbook to automate
+
+https://github.com/str0ng007/journal/tree/main/codes/ansible/k8s-install-kubeadm
