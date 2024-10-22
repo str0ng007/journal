@@ -45,7 +45,7 @@ ansible-playbook -i inventory install_k8s.yml
 
 login to the master node
 ```
-ssh user@mrmaster1
+ssh user@rmaster1
 ```
 check if the nodes
 
