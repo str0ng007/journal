@@ -38,6 +38,7 @@ alias ll="ls -a --color=auto"
 alias tf="terraform"
 alias ot="opentofu"
 alias nv="nvim"
+alias k="kubectl"
 
 export EDITOR=nvim
 export VISUAL=nvim
