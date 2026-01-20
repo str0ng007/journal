@@ -1,0 +1,27 @@
+---
+# RKE2 Configuration Variables
+
+# RKE2 version to install (leave empty for latest)
+rke2_version: ""
+
+# RKE2 cluster configuration
+rke2_cluster_token: "my-shared-secret-token"
+
+# Network configuration
+rke2_cni: "canal"  # canal, calico, cilium, or none
+
+# Firewall settings
+enable_firewall: false  # Set to true to enable and configure firewall
+disable_firewalld: true  # Deprecated: use enable_firewall instead
+
+# SELinux settings
+disable_selinux: true
+
+# System upgrade before installation
+system_upgrade: false
+reboot_after_upgrade: false  # Set to true to reboot after system upgrade
+
+# Rancher installation
+install_rancher: true  # Set to true to install Rancher
+rancher_hostname: "192.168.56.10.sslip.io"  # Change to your master IP
+rancher_bootstrap_password: "admin"  # Change this in production!

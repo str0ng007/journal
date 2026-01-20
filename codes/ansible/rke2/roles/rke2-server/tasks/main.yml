@@ -1,0 +1,116 @@
+---
+# tasks file for rke2-server
+
+- name: Check if RKE2 server is already installed
+  stat:
+    path: /usr/local/bin/rke2
+  register: rke2_server_binary
+
+- name: Check if RKE2 server service is running
+  systemd:
+    name: rke2-server
+  register: rke2_server_service
+  failed_when: false
+  changed_when: false
+
+- name: Create RKE2 config directory
+  file:
+    path: /etc/rancher/rke2
+    state: directory
+    mode: '0755'
+
+- name: Create RKE2 server config
+  template:
+    src: config.yaml.j2
+    dest: /etc/rancher/rke2/config.yaml
+    mode: '0600'
+
+- name: Download RKE2 install script
+  get_url:
+    url: https://get.rke2.io
+    dest: /tmp/rke2-install.sh
+    mode: '0755'
+  when: not rke2_server_binary.stat.exists
+
+- name: Install RKE2 server
+  shell: |
+    {% if rke2_version %}
+    INSTALL_RKE2_VERSION={{ rke2_version }} /tmp/rke2-install.sh
+    {% else %}
+    /tmp/rke2-install.sh
+    {% endif %}
+  when: not rke2_server_binary.stat.exists
+
+- name: Enable and start rke2-server service
+  systemd:
+    name: rke2-server
+    enabled: yes
+    state: started
+  when: not rke2_server_binary.stat.exists
+
+- name: Wait for RKE2 server to be ready
+  wait_for:
+    path: /var/lib/rancher/rke2/server/node-token
+    timeout: 300
+  when: not rke2_server_binary.stat.exists
+
+- name: Wait for kubectl to be available
+  wait_for:
+    path: /var/lib/rancher/rke2/bin/kubectl
+    timeout: 300
+  when: not rke2_server_binary.stat.exists
+
+- name: Read node token
+  slurp:
+    src: /var/lib/rancher/rke2/server/node-token
+  register: node_token
+
+- name: Save node token for workers
+  set_fact:
+    rke2_token: "{{ node_token.content | b64decode | trim }}"
+
+- name: Create .kube directory for user
+  file:
+    path: "{{ ansible_env.HOME }}/.kube"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: Copy kubeconfig to user's .kube directory
+  copy:
+    src: /etc/rancher/rke2/rke2.yaml
+    dest: "{{ ansible_env.HOME }}/.kube/config"
+    remote_src: yes
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0600'
+
+- name: Add kubectl to PATH
+  copy:
+    content: |
+      export PATH=$PATH:/var/lib/rancher/rke2/bin
+      export KUBECONFIG={{ ansible_env.HOME }}/.kube/config
+    dest: /etc/profile.d/rke2.sh
+    mode: '0644'
+
+- name: Create symlink for kubectl
+  file:
+    src: /var/lib/rancher/rke2/bin/kubectl
+    dest: /usr/local/bin/kubectl
+    state: link
+
+- name: Wait for all nodes to be ready
+  shell: /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get nodes
+  register: nodes_status
+  until: nodes_status.rc == 0
+  retries: 30
+  delay: 10
+
+- name: Display cluster info
+  shell: /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get nodes -o wide
+  register: cluster_nodes
+
+- name: Show cluster nodes
+  debug:
+    msg: "{{ cluster_nodes.stdout_lines }}"

@@ -1,0 +1,48 @@
+---
+# tasks file for rke2-verify
+
+- name: Wait for all nodes to be Ready
+  shell: |
+    /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get nodes | grep -v NAME | grep -v Ready | wc -l
+  register: not_ready_nodes
+  until: not_ready_nodes.stdout == "0"
+  retries: 30
+  delay: 10
+
+- name: Get all nodes
+  shell: /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get nodes -o wide
+  register: all_nodes
+
+- name: Display all nodes
+  debug:
+    msg: "{{ all_nodes.stdout_lines }}"
+
+- name: Get all pods
+  shell: /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get pods -A
+  register: all_pods
+
+- name: Display all pods
+  debug:
+    msg: "{{ all_pods.stdout_lines }}"
+
+- name: Copy kubeconfig to local machine instructions
+  debug:
+    msg: |
+      ============================================
+      RKE2 Cluster Installation Complete!
+      ============================================
+      
+      To access the cluster from your local machine:
+      
+      1. Copy the kubeconfig:
+         scp vagrant@{{ ansible_default_ipv4.address }}:/etc/rancher/rke2/rke2.yaml ~/.kube/config
+      
+      2. Update the server address in ~/.kube/config:
+         sed -i 's/127.0.0.1/{{ ansible_default_ipv4.address }}/g' ~/.kube/config
+      
+      3. Test access:
+         kubectl get nodes
+      
+      Master Node: {{ ansible_default_ipv4.address }}
+      Token: {{ hostvars[groups['master'][0]]['rke2_token'] }}
+      ============================================

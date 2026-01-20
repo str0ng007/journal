@@ -1,0 +1,58 @@
+---
+# defaults file for firewall-configure
+
+# RKE2 Common Ports (all nodes)
+rke2_common_ports:
+  - port: 6443
+    protocol: tcp
+    source: "{{ rke2_network_cidr | default('0.0.0.0/0') }}"
+    description: "Kubernetes API"
+  - port: 9345
+    protocol: tcp
+    source: "{{ rke2_network_cidr | default('0.0.0.0/0') }}"
+    description: "RKE2 supervisor API"
+  - port: 10250
+    protocol: tcp
+    source: "{{ rke2_network_cidr | default('0.0.0.0/0') }}"
+    description: "kubelet metrics"
+  - port: "30000-32767"
+    protocol: tcp
+    source: "{{ rke2_network_cidr | default('0.0.0.0/0') }}"
+    description: "NodePort port range"
+
+# RKE2 Master Ports (etcd)
+rke2_master_ports:
+  - port: 2379
+    protocol: tcp
+    source: "{{ rke2_network_cidr | default('0.0.0.0/0') }}"
+    description: "etcd client port"
+  - port: 2380
+    protocol: tcp
+    source: "{{ rke2_network_cidr | default('0.0.0.0/0') }}"
+    description: "etcd peer port"
+  - port: 2381
+    protocol: tcp
+    source: "{{ rke2_network_cidr | default('0.0.0.0/0') }}"
+    description: "etcd metrics port"
+
+# Canal CNI Ports
+rke2_canal_ports:
+  - port: 8472
+    protocol: udp
+    source: "{{ rke2_network_cidr | default('0.0.0.0/0') }}"
+    description: "Canal CNI with VXLAN"
+  - port: 9099
+    protocol: tcp
+    source: "{{ rke2_network_cidr | default('0.0.0.0/0') }}"
+    description: "Canal CNI health checks"
+  - port: 51820
+    protocol: udp
+    source: "{{ rke2_network_cidr | default('0.0.0.0/0') }}"
+    description: "Canal CNI with WireGuard IPv4"
+  - port: 51821
+    protocol: udp
+    source: "{{ rke2_network_cidr | default('0.0.0.0/0') }}"
+    description: "Canal CNI with WireGuard IPv6/dual-stack"
+
+# Network CIDR for RKE2 cluster (restrict sources if needed)
+rke2_network_cidr: "0.0.0.0/0"

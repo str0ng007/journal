@@ -1,0 +1,62 @@
+---
+# tasks file for rke2-agent
+
+- name: Check if RKE2 agent is already installed
+  stat:
+    path: /usr/local/bin/rke2
+  register: rke2_agent_binary
+
+- name: Check if RKE2 agent service is running
+  systemd:
+    name: rke2-agent
+  register: rke2_agent_service
+  failed_when: false
+  changed_when: false
+
+- name: Get master node IP
+  set_fact:
+    master_ip: "{{ hostvars[groups['master'][0]]['ansible_host'] | default(groups['master'][0]) }}"
+
+- name: Get node token from master
+  set_fact:
+    rke2_token: "{{ hostvars[groups['master'][0]]['rke2_token'] }}"
+
+- name: Create RKE2 config directory
+  file:
+    path: /etc/rancher/rke2
+    state: directory
+    mode: '0755'
+
+- name: Create RKE2 agent config
+  template:
+    src: config.yaml.j2
+    dest: /etc/rancher/rke2/config.yaml
+    mode: '0600'
+
+- name: Download RKE2 install script
+  get_url:
+    url: https://get.rke2.io
+    dest: /tmp/rke2-install.sh
+    mode: '0755'
+  when: not rke2_agent_binary.stat.exists
+
+- name: Install RKE2 agent
+  shell: |
+    {% if rke2_version %}
+    INSTALL_RKE2_TYPE="agent" INSTALL_RKE2_VERSION={{ rke2_version }} /tmp/rke2-install.sh
+    {% else %}
+    INSTALL_RKE2_TYPE="agent" /tmp/rke2-install.sh
+    {% endif %}
+  when: not rke2_agent_binary.stat.exists
+
+- name: Enable and start rke2-agent service
+  systemd:
+    name: rke2-agent
+    enabled: yes
+    state: started
+  when: not rke2_agent_binary.stat.exists
+
+- name: Wait for agent to join cluster
+  wait_for:
+    timeout: 60
+  when: not rke2_agent_binary.stat.exists

@@ -1,0 +1,41 @@
+---
+# Playbook to install RKE2 Kubernetes Cluster (Role-based)
+# Based on https://docs.rke2.io/install/quickstart
+
+- name: Prepare all nodes
+  hosts: all
+  become: yes
+  roles:
+    - system-prepare
+
+- name: Configure firewall (if enabled)
+  hosts: all
+  become: yes
+  roles:
+    - role: firewall-configure
+      when: enable_firewall | default(false)
+
+- name: Install RKE2 Server (Master)
+  hosts: master
+  become: yes
+  roles:
+    - rke2-server
+
+- name: Install RKE2 Agent (Workers)
+  hosts: workers
+  become: yes
+  roles:
+    - rke2-agent
+
+- name: Verify RKE2 cluster
+  hosts: master
+  become: yes
+  roles:
+    - rke2-verify
+
+- name: Install Rancher (optional)
+  hosts: master
+  become: yes
+  roles:
+    - role: rancher-install
+      when: install_rancher | default(false)

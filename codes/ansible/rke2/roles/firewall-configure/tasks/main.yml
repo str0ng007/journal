@@ -1,0 +1,59 @@
+---
+# tasks file for firewall-configure
+
+- name: Install firewalld
+  dnf:
+    name: firewalld
+    state: present
+
+- name: Enable and start firewalld
+  systemd:
+    name: firewalld
+    enabled: yes
+    state: started
+
+- name: Configure common RKE2 firewall rules (all nodes)
+  firewalld:
+    port: "{{ item.port }}/{{ item.protocol }}"
+    permanent: yes
+    state: enabled
+    immediate: yes
+  loop: "{{ rke2_common_ports }}"
+  notify: reload firewalld
+
+- name: Configure Canal CNI firewall rules (all nodes)
+  firewalld:
+    port: "{{ item.port }}/{{ item.protocol }}"
+    permanent: yes
+    state: enabled
+    immediate: yes
+  loop: "{{ rke2_canal_ports }}"
+  when: rke2_cni == "canal"
+  notify: reload firewalld
+
+- name: Configure master-specific firewall rules
+  firewalld:
+    port: "{{ item.port }}/{{ item.protocol }}"
+    permanent: yes
+    state: enabled
+    immediate: yes
+  loop: "{{ rke2_master_ports }}"
+  when: "'master' in group_names"
+  notify: reload firewalld
+
+- name: Allow SSH (port 22)
+  firewalld:
+    service: ssh
+    permanent: yes
+    state: enabled
+    immediate: yes
+  notify: reload firewalld
+
+- name: Display firewall status
+  command: firewall-cmd --list-all
+  register: firewall_status
+  changed_when: false
+
+- name: Show firewall configuration
+  debug:
+    msg: "{{ firewall_status.stdout_lines }}"

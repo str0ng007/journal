@@ -1,0 +1,7 @@
+---
+# handlers file for system-prepare
+
+- name: reload networkmanager
+  systemd:
+    name: NetworkManager
+    state: reloaded

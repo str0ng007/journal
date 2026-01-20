@@ -1,0 +1,7 @@
+token: {{ rke2_cluster_token }}
+write-kubeconfig-mode: "0644"
+bind-address: {{ ansible_host | default(ansible_default_ipv4.address) }}
+advertise-address: {{ ansible_host | default(ansible_default_ipv4.address) }}
+tls-san:
+  - "{{ ansible_host | default(ansible_default_ipv4.address) }}"
+cni: {{ rke2_cni }}

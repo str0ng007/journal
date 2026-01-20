@@ -1,0 +1,15 @@
+---
+# defaults file for rancher-install
+
+# Rancher installation
+rancher_version: ""  # Leave empty for latest, or specify version like "2.7.0"
+rancher_hostname: "{{ ansible_host }}.sslip.io"
+rancher_replicas: 1
+rancher_bootstrap_password: "admin"  # Change this!
+
+# cert-manager version
+cert_manager_version: "v1.19.2"
+
+# Helm repo URLs
+rancher_helm_repo: "https://releases.rancher.com/server-charts/latest"
+jetstack_helm_repo: "https://charts.jetstack.io"

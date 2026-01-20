@@ -1,0 +1,112 @@
+---
+# tasks file for system-prepare
+
+- name: Upgrade all packages
+  dnf:
+    name: "*"
+    state: latest
+  when: system_upgrade | default(true)
+  register: system_upgraded
+
+- name: Reboot after system upgrade
+  reboot:
+    msg: "Rebooting after system upgrade"
+    connect_timeout: 5
+    reboot_timeout: 300
+    pre_reboot_delay: 0
+    post_reboot_delay: 30
+  when: 
+    - system_upgrade | default(true)
+    - reboot_after_upgrade | default(false)
+    - system_upgraded.changed
+
+- name: Disable SELinux temporarily
+  command: setenforce 0
+  failed_when: false
+  when: disable_selinux | default(true)
+
+- name: Disable SELinux permanently
+  lineinfile:
+    path: /etc/selinux/config
+    regexp: '^SELINUX='
+    line: 'SELINUX=disabled'
+  when: disable_selinux | default(true)
+  register: selinux_disabled
+
+- name: Reboot after disabling SELinux
+  reboot:
+    msg: "Rebooting after disabling SELinux"
+    connect_timeout: 5
+    reboot_timeout: 300
+    pre_reboot_delay: 0
+    post_reboot_delay: 30
+  when:
+    - disable_selinux | default(true)
+    - selinux_disabled.changed
+
+- name: Disable firewalld
+  systemd:
+    name: firewalld
+    state: stopped
+    enabled: no
+  failed_when: false
+  when: 
+    - not enable_firewall | default(false)
+    - disable_firewalld | default(true)
+
+- name: Load required kernel modules
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - br_netfilter
+    - overlay
+    - xt_CHECKSUM
+  failed_when: false
+
+- name: Make kernel modules persistent
+  copy:
+    content: |
+      br_netfilter
+      overlay
+      xt_CHECKSUM
+    dest: /etc/modules-load.d/rke2.conf
+
+- name: Set sysctl parameters for RKE2
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_set: yes
+    reload: yes
+  loop:
+    - { name: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+    - { name: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
+    - { name: 'net.ipv4.ip_forward', value: '1' }
+
+- name: Install required packages
+  dnf:
+    name:
+      - curl
+      - iptables
+      - container-selinux
+      - libnetfilter_conntrack
+      - libnfnetlink
+      - libnftnl
+      - policycoreutils-python-utils
+    state: present
+
+- name: Check NetworkManager version (Rocky Linux known issue)
+  command: NetworkManager --version
+  register: nm_version
+  changed_when: false
+  failed_when: false
+
+- name: Configure NetworkManager for RKE2 (Rocky Linux 9 fix)
+  copy:
+    content: |
+      [keyfile]
+      unmanaged-devices=interface-name:cali*;interface-name:flannel*
+    dest: /etc/NetworkManager/conf.d/rke2-canal.conf
+  when: rke2_cni == "canal"
+  notify: reload networkmanager

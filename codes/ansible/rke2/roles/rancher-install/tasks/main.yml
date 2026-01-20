@@ -1,0 +1,275 @@
+---
+# tasks file for rancher-install
+
+- name: Install git
+  dnf:
+    name: git
+    state: present
+
+- name: Check if helm is installed
+  stat:
+    path: /usr/local/bin/helm
+  register: helm_binary
+
+- name: Install helm
+  shell: |
+    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | PATH=/usr/local/bin:$PATH bash
+  environment:
+    PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
+  when: not helm_binary.stat.exists
+
+- name: Create symlink for helm if needed
+  file:
+    src: /usr/local/bin/helm
+    dest: /usr/bin/helm
+    state: link
+  when: not helm_binary.stat.exists
+  ignore_errors: yes
+
+- name: Check if Rancher Helm repository exists
+  shell: /usr/local/bin/helm repo list | grep rancher-latest
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+    PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
+  register: rancher_repo_check
+  failed_when: false
+  changed_when: false
+
+- name: Add Rancher Helm repository
+  command: /usr/local/bin/helm repo add rancher-latest {{ rancher_helm_repo }}
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+    PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
+  when: rancher_repo_check.rc != 0
+
+- name: Check if Jetstack Helm repository exists
+  shell: /usr/local/bin/helm repo list | grep jetstack
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+    PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
+  register: jetstack_repo_check
+  failed_when: false
+  changed_when: false
+
+- name: Add Jetstack Helm repository
+  command: /usr/local/bin/helm repo add jetstack {{ jetstack_helm_repo }}
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+    PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
+  when: jetstack_repo_check.rc != 0
+
+- name: Update Helm repositories
+  command: /usr/local/bin/helm repo update
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+    PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
+  changed_when: false
+
+- name: Check if cattle-system namespace exists
+  shell: /var/lib/rancher/rke2/bin/kubectl get namespace cattle-system
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+  register: cattle_ns_check
+  failed_when: false
+  changed_when: false
+
+- name: Create cattle-system namespace
+  command: /var/lib/rancher/rke2/bin/kubectl create namespace cattle-system
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+  when: cattle_ns_check.rc != 0
+
+- name: Check if cert-manager namespace exists
+  shell: /var/lib/rancher/rke2/bin/kubectl get namespace cert-manager
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+  register: certmgr_ns_check
+  failed_when: false
+  changed_when: false
+
+- name: Create cert-manager namespace
+  command: /var/lib/rancher/rke2/bin/kubectl create namespace cert-manager
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+  when: certmgr_ns_check.rc != 0
+
+- name: Apply cert-manager CRDs
+  command: >
+    /var/lib/rancher/rke2/bin/kubectl apply -f 
+    https://github.com/cert-manager/cert-manager/releases/download/{{ cert_manager_version }}/cert-manager.crds.yaml
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+
+- name: Check if cert-manager is already installed
+  shell: /usr/local/bin/helm list -n cert-manager -o json | grep cert-manager
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+    PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
+  register: cert_manager_check
+  failed_when: false
+  changed_when: false
+
+- name: Install cert-manager
+  command: >
+    /usr/local/bin/helm install cert-manager jetstack/cert-manager
+    --namespace cert-manager
+    --version {{ cert_manager_version }}
+    --wait
+    --timeout=10m
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+    PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
+  when: cert_manager_check.rc != 0
+  register: cert_manager_install
+  failed_when: false
+
+- name: Wait for cert-manager pods to be created
+  shell: |
+    /var/lib/rancher/rke2/bin/kubectl get pods -n cert-manager | grep cert-manager
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+  register: cert_manager_pods
+  until: cert_manager_pods.rc == 0
+  retries: 60
+  delay: 10
+  when: cert_manager_check.rc != 0
+
+- name: Wait for cert-manager to be ready
+  shell: |
+    /var/lib/rancher/rke2/bin/kubectl wait --for=condition=ready pod \
+      -l app.kubernetes.io/instance=cert-manager \
+      -n cert-manager \
+      --timeout=600s
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+  retries: 5
+  delay: 20
+  register: cert_manager_ready
+  until: cert_manager_ready.rc == 0
+
+- name: Wait for cert-manager webhook to be ready
+  shell: |
+    /var/lib/rancher/rke2/bin/kubectl wait --for=condition=ready pod \
+      -l app.kubernetes.io/component=webhook \
+      -n cert-manager \
+      --timeout=600s
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+  retries: 10
+  delay: 30
+  register: webhook_ready
+  until: webhook_ready.rc == 0
+
+- name: Wait for RKE2 nginx-ingress webhook to be ready
+  shell: |
+    /var/lib/rancher/rke2/bin/kubectl wait --for=condition=ready pod \
+      -l app.kubernetes.io/component=controller \
+      -n kube-system \
+      --timeout=600s
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+  retries: 10
+  delay: 30
+  register: nginx_ready
+  until: nginx_ready.rc == 0
+  ignore_errors: yes
+
+- name: Wait additional time for all webhooks to be fully operational
+  pause:
+    seconds: 120
+
+- name: Check if Rancher is already installed
+  shell: /usr/local/bin/helm list -n cattle-system -o json | grep rancher
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+    PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
+  register: rancher_check
+  failed_when: false
+  changed_when: false
+
+- name: Delete cert-manager webhook configurations if Rancher not installed
+  shell: |
+    /var/lib/rancher/rke2/bin/kubectl delete validatingwebhookconfiguration cert-manager-webhook --ignore-not-found=true
+    /var/lib/rancher/rke2/bin/kubectl delete mutatingwebhookconfiguration cert-manager-webhook --ignore-not-found=true
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+  when: rancher_check.rc != 0
+  ignore_errors: yes
+
+- name: Wait for webhook configurations to be recreated
+  pause:
+    seconds: 30
+  when: rancher_check.rc != 0
+
+- name: Install Rancher
+  shell: >
+    /usr/local/bin/helm install rancher rancher-latest/rancher
+    --namespace cattle-system
+    --set hostname={{ rancher_hostname }}
+    --set replicas={{ rancher_replicas }}
+    --set bootstrapPassword={{ rancher_bootstrap_password }}
+    --set ingress.ingressClassName=nginx
+    {% if rancher_version %}--version {{ rancher_version }}{% endif %}
+    --wait=false
+    --timeout=15m
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+    PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
+  when: rancher_check.rc != 0
+  register: rancher_install
+  failed_when: false
+  async: 1200
+  poll: 10
+
+- name: Wait for Rancher deployment to be created
+  shell: |
+    /var/lib/rancher/rke2/bin/kubectl get deployment rancher -n cattle-system
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+  register: rancher_deployment
+  until: rancher_deployment.rc == 0
+  retries: 60
+  delay: 10
+
+- name: Patch Rancher deployment startup probe timeout
+  shell: |
+    /var/lib/rancher/rke2/bin/kubectl patch deployment rancher -n cattle-system --type='json' -p='[
+      {
+        "op": "replace",
+        "path": "/spec/template/spec/containers/0/startupProbe/failureThreshold",
+        "value": 60
+      },
+      {
+        "op": "replace",
+        "path": "/spec/template/spec/containers/0/startupProbe/periodSeconds",
+        "value": 10
+      }
+    ]'
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+  when: rancher_check.rc != 0
+
+- name: Wait for Rancher pods to stabilize after probe patch
+  pause:
+    seconds: 60
+
+- name: Wait for Rancher to be ready
+  shell: |
+    /var/lib/rancher/rke2/bin/kubectl wait --for=condition=ready pod \
+      -l app=rancher \
+      -n cattle-system \
+      --timeout=900s
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+  retries: 10
+  delay: 60
+  register: rancher_ready
+  until: rancher_ready.rc == 0
+
+- name: Get Rancher URL
+  debug:
+    msg: "Rancher is available at: https://{{ rancher_hostname }}"
+
+- name: Display bootstrap password
+  debug:
+    msg: "Bootstrap password: {{ rancher_bootstrap_password }}"
