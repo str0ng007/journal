@@ -284,6 +284,7 @@ load_plugins {
 // Default: default
 // 
 // theme "dracula"
+theme "gruvbox-dark"
  
 // Choose the base input mode of zellij.
 // Default: normal
