@@ -69,6 +69,37 @@ local plugins = {
 	},
 
 	{
+		"sainnhe/gruvbox-material",
+		priority = 1000,
+	},
+
+	{
+		"rebelot/kanagawa.nvim",
+		priority = 1000,
+	},
+
+	{
+		"shaunsingh/nord.nvim",
+		priority = 1000,
+	},
+
+	{
+		"rose-pine/neovim",
+		name = "rose-pine",
+		priority = 1000,
+	},
+
+	{
+		"EdenEast/nightfox.nvim",
+		priority = 1000,
+	},
+
+	{
+		"navarasu/onedark.nvim",
+		priority = 1000,
+	},
+
+	{
 		"nvim-lualine/lualine.nvim",
 		dependencies = { "nvim-tree/nvim-web-devicons" },
 	},
@@ -162,8 +193,92 @@ vim.keymap.set("n", "<leader>fh", builtin.help_tags, {})
 vim.keymap.set("n", "<leader>fe", ":Neotree filesystem reveal left<CR>")
 vim.keymap.set("n", "<leader>gs", ":Neotree float git_status <CR>")
 
+-- Window Picker Setup
+require("window-picker").setup({
+	hint = "floating-big-letter",
+	selection_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+	filter_rules = {
+		bo = {
+			filetype = { "neo-tree", "neo-tree-popup", "notify" },
+			buftype = { "terminal", "quickfix" },
+		},
+	},
+})
+
+-- Custom function to open file with window picker
+local function open_file_with_picker(prompt_bufnr)
+	local actions = require("telescope.actions")
+	local action_state = require("telescope.actions.state")
+	local picker = require("window-picker")
+
+	local selected_entry = action_state.get_selected_entry()
+	actions.close(prompt_bufnr)
+
+	local picked_window = picker.pick_window()
+	if picked_window then
+		vim.api.nvim_set_current_win(picked_window)
+	end
+
+	vim.cmd("edit " .. selected_entry.path)
+end
+
+-- Custom function to open file in new split with picker
+local function open_file_split_picker(prompt_bufnr)
+	local actions = require("telescope.actions")
+	local action_state = require("telescope.actions.state")
+	local picker = require("window-picker")
+
+	local selected_entry = action_state.get_selected_entry()
+	actions.close(prompt_bufnr)
+
+	local picked_window = picker.pick_window()
+	if picked_window then
+		vim.api.nvim_set_current_win(picked_window)
+		vim.cmd("split " .. selected_entry.path)
+	else
+		vim.cmd("split " .. selected_entry.path)
+	end
+end
+
+-- Custom function to open file in new vsplit with picker
+local function open_file_vsplit_picker(prompt_bufnr)
+	local actions = require("telescope.actions")
+	local action_state = require("telescope.actions.state")
+	local picker = require("window-picker")
+
+	local selected_entry = action_state.get_selected_entry()
+	actions.close(prompt_bufnr)
+
+	local picked_window = picker.pick_window()
+	if picked_window then
+		vim.api.nvim_set_current_win(picked_window)
+		vim.cmd("vsplit " .. selected_entry.path)
+	else
+		vim.cmd("vsplit " .. selected_entry.path)
+	end
+end
+
+-- Telescope with window picker mappings
+local actions = require("telescope.actions")
+require("telescope").setup({
+	defaults = {
+		mappings = {
+			i = {
+				["<C-w>"] = open_file_with_picker, -- Ctrl+w to pick window
+				["<C-s>"] = open_file_split_picker, -- Ctrl+s for horizontal split with picker
+				["<C-v>"] = open_file_vsplit_picker, -- Ctrl+v for vertical split with picker
+			},
+			n = {
+				["<C-w>"] = open_file_with_picker,
+				["<C-s>"] = open_file_split_picker,
+				["<C-v>"] = open_file_vsplit_picker,
+			},
+		},
+	},
+})
+
 require("catppuccin").setup()
-vim.cmd.colorscheme("catppuccin")
+vim.cmd.colorscheme("gruvbox-material")
 
 require("gitsigns").setup({
 	on_attach = function(bufnr)

@@ -43,17 +43,12 @@
 # resize-overlay-duration = 4s 200ms
 
 # My config
+font-family = Monaco
 cursor-style = underline
-theme = Gitlab-Dark
+theme = Gruvbox Dark
 
-# Clear all keybindings to avoid conflicts, specially in MacOS
-# You can easily get the default keybindings via ghostty +list-keybinds --defaults
 keybind=clear
-
-# For MacBook, set the `Option` button as `Alt` 
 macos-option-as-alt = true
-
-# Set your desired keybindings
 keybind = super+v=paste_from_clipboard
 keybind = super+equal=increase_font_size:1
 keybind = super+plus=increase_font_size:1
